@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>French Master - Predefined Words Cleanup Tool</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+    }
+    h1, h2, h3 {
+      color: #2563eb;
+    }
+    button {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: background-color 0.2s;
+    }
+    button:hover {
+      background-color: #1d4ed8;
+    }
+    button:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+    }
+    .danger {
+      background-color: #dc2626;
+    }
+    .danger:hover {
+      background-color: #b91c1c;
+    }
+    .success {
+      background-color: #16a34a;
+    }
+    .success:hover {
+      background-color: #15803d;
+    }
+    .warning {
+      background-color: #f59e0b;
+    }
+    .warning:hover {
+      background-color: #d97706;
+    }
+    pre {
+      background-color: #f1f5f9;
+      padding: 15px;
+      border-radius: 5px;
+      overflow: auto;
+      font-family: monospace;
+    }
+    .status {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 5px;
+    }
+    .status.success {
+      background-color: #dcfce7;
+      color: #166534;
+      border: 1px solid #86efac;
+    }
+    .status.error {
+      background-color: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+    .status.working {
+      background-color: #dbeafe;
+      color: #1e40af;
+      border: 1px solid #93c5fd;
+    }
+    .log {
+      height: 300px;
+      overflow: auto;
+    }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 20px 0;
+    }
+    .stat-box {
+      background-color: #f1f5f9;
+      padding: 10px;
+      border-radius: 5px;
+      flex: 1;
+      text-align: center;
+      min-width: 120px;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .stat-label {
+      font-size: 14px;
+      color: #64748b;
+    }
+    .step-button {
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Predefined Words Cleanup Tool</h1>
+    <p>This tool will permanently delete all predefined words from your database, keeping only your custom words.</p>
+
+    <div class="stats">
+      <div class="stat-box">
+        <div class="stat-value" id="totalWords">-</div>
+        <div class="stat-label">Total Words</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="predefinedWords">-</div>
+        <div class="stat-label">Predefined Words</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="deletedWords">-</div>
+        <div class="stat-label">Deleted Words</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="userWords">-</div>
+        <div class="stat-label">User Words</div>
+      </div>
+    </div>
+
+    <h2>Steps to Clean Up Database</h2>
+    <div>
+      <button id="analyzeBtn" class="step-button">1. Analyze Database</button>
+      <button id="deleteBtn" class="step-button danger" disabled>2. Delete Predefined Words</button>
+      <button id="verifyBtn" class="step-button warning" disabled>3. Verify Deletion</button>
+      <button id="refreshBtn" class="step-button success" disabled>4. Refresh Application</button>
+    </div>
+
+    <div id="statusBox" class="status working" style="display:none;">Working...</div>
+
+    <h3>Execution Log:</h3>
+    <pre id="logOutput" class="log"></pre>
+    
+    <div id="resultSection" style="display:none;">
+      <h2>Results</h2>
+      <pre id="resultOutput"></pre>
+      <button id="closeBtn" class="success">Close This Tool</button>
+    </div>
+  </div>
+
+  <script>
+    // Global variables
+    let db;
+    const DB_NAME = 'frenchMasterDB';
+    const DB_VERSION = 1;
+    const STORE_WORDS = 'words';
+    
+    const stats = {
+      totalWords: 0,
+      predefinedWords: 0,
+      deletedWords: 0,
+      userWords: 0
+    };
+
+    // UI elements
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const deleteBtn = document.getElementById('deleteBtn');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const statusBox = document.getElementById('statusBox');
+    const logOutput = document.getElementById('logOutput');
+    const resultOutput = document.getElementById('resultOutput');
+    const resultSection = document.getElementById('resultSection');
+    const closeBtn = document.getElementById('closeBtn');
+
+    // Stats elements
+    const totalWordsEl = document.getElementById('totalWords');
+    const predefinedWordsEl = document.getElementById('predefinedWords');
+    const deletedWordsEl = document.getElementById('deletedWords');
+    const userWordsEl = document.getElementById('userWords');
+
+    // Utility functions
+    function log(message) {
+      const timestamp = new Date().toLocaleTimeString();
+      logOutput.textContent += `[${timestamp}] ${message}\n`;
+      logOutput.scrollTop = logOutput.scrollHeight;
+      console.log(message);
+    }
+
+    function updateStatus(message, type = 'working') {
+      statusBox.textContent = message;
+      statusBox.className = `status ${type}`;
+      statusBox.style.display = 'block';
+    }
+
+    function updateStats() {
+      totalWordsEl.textContent = stats.totalWords;
+      predefinedWordsEl.textContent = stats.predefinedWords;
+      deletedWordsEl.textContent = stats.deletedWords;
+      userWordsEl.textContent = stats.userWords;
+    }
+
+    // Database functions
+    async function openDatabase() {
+      log('Opening IndexedDB database...');
+      
+      return new Promise((resolve, reject) => {
+        const request = indexedDB.open(DB_NAME, DB_VERSION);
+        
+        request.onerror = (event) => {
+          log(`ERROR: Failed to open database: ${event.target.error}`);
+          reject(event.target.error);
+        };
+        
+        request.onsuccess = (event) => {
+          log('Database opened successfully');
+          db = event.target.result;
+          resolve(db);
+        };
+      });
+    }
+
+    async function getAllWords() {
+      log('Getting all words from database...');
+      
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_WORDS], 'readonly');
+        const store = transaction.objectStore(STORE_WORDS);
+        const request = store.getAll();
+        
+        request.onerror = (event) => {
+          log(`ERROR: Failed to get words: ${event.target.error}`);
+          reject(event.target.error);
+        };
+        
+        request.onsuccess = (event) => {
+          const words = event.target.result;
+          log(`Retrieved ${words.length} total words`);
+          resolve(words);
+        };
+      });
+    }
+
+    function isPredefinedWord(word) {
+      return (
+        word.isPredefined === true || 
+        (word.id && typeof word.id === 'string' && (
+          word.id.startsWith('word-') ||
+          word.id.startsWith('fallback-w')
+        ))
+      );
+    }
+
+    async function deleteWord(wordId) {
+      log(`Deleting word with ID: ${wordId}`);
+      
+      return new Promise((resolve, reject) => {
+        const transaction = db.transaction([STORE_WORDS], 'readwrite');
+        const store = transaction.objectStore(STORE_WORDS);
+        const request = store.delete(wordId);
+        
+        request.onerror = (event) => {
+          log(`ERROR: Failed to delete word ${wordId}: ${event.target.error}`);
+          reject(event.target.error);
+        };
+        
+        request.onsuccess = () => {
+          log(`Successfully deleted word: ${wordId}`);
+          resolve(true);
+        };
+      });
+    }
+
+    // Main functionality
+    async function analyzeDatabase() {
+      analyzeBtn.disabled = true;
+      updateStatus('Analyzing database...', 'working');
+      
+      try {
+        // Open database if not already open
+        if (!db) {
+          await openDatabase();
+        }
+        
+        // Get all words
+        const words = await getAllWords();
+        stats.totalWords = words.length;
+        
+        // Find predefined words
+        const predefinedWords = words.filter(isPredefinedWord);
+        stats.predefinedWords = predefinedWords.length;
+        stats.userWords = words.length - predefinedWords.length;
+        
+        log(`Analysis complete: Found ${predefinedWords.length} predefined words out of ${words.length} total words`);
+        
+        // Show predefined words
+        if (predefinedWords.length > 0) {
+          log('Predefined words found:');
+          predefinedWords.forEach(word => {
+            log(`- ID: ${word.id}, English: ${word.english}, French: ${Array.isArray(word.french) ? word.french[0] : word.french}`);
+          });
+          
+          deleteBtn.disabled = false;
+        } else {
+          log('No predefined words found! Database is already clean.');
+          verifyBtn.disabled = false;
+        }
+        
+        updateStats();
+        updateStatus(`Analysis complete: Found ${stats.predefinedWords} predefined words`, stats.predefinedWords > 0 ? 'error' : 'success');
+        
+      } catch (error) {
+        log(`ERROR during analysis: ${error.message}`);
+        updateStatus(`Analysis failed: ${error.message}`, 'error');
+      }
+    }
+
+    async function deletePredefinedWords() {
+      deleteBtn.disabled = true;
+      updateStatus('Deleting predefined words...', 'working');
+      
+      try {
+        // Get all words again
+        const words = await getAllWords();
+        
+        // Find predefined words
+        const predefinedWords = words.filter(isPredefinedWord);
+        
+        if (predefinedWords.length === 0) {
+          log('No predefined words to delete!');
+          verifyBtn.disabled = false;
+          updateStatus('No predefined words to delete', 'success');
+          return;
+        }
+        
+        log(`Starting deletion of ${predefinedWords.length} predefined words...`);
+        
+        // Delete each predefined word
+        let successCount = 0;
+        let errorCount = 0;
+        
+        for (const word of predefinedWords) {
+          try {
+            await deleteWord(word.id);
+            successCount++;
+            stats.deletedWords++;
+            updateStats();
+          } catch (error) {
+            log(`ERROR deleting word ${word.id}: ${error.message}`);
+            errorCount++;
+          }
+        }
+        
+        log(`Deletion complete: ${successCount} words deleted successfully, ${errorCount} errors`);
+        verifyBtn.disabled = false;
+        
+        updateStatus(`Deleted ${successCount} predefined words${errorCount > 0 ? `, ${errorCount} failed` : ''}`, 
+          errorCount > 0 ? 'warning' : 'success');
+        
+      } catch (error) {
+        log(`ERROR during deletion: ${error.message}`);
+        updateStatus(`Deletion failed: ${error.message}`, 'error');
+      }
+    }
+
+    async function verifyDeletion() {
+      verifyBtn.disabled = true;
+      updateStatus('Verifying deletion...', 'working');
+      
+      try {
+        // Get all words again
+        const words = await getAllWords();
+        
+        // Find any remaining predefined words
+        const remainingPredefined = words.filter(isPredefinedWord);
+        stats.userWords = words.length - remainingPredefined.length;
+        updateStats();
+        
+        if (remainingPredefined.length === 0) {
+          log('Verification successful! No predefined words remain in the database.');
+          refreshBtn.disabled = false;
+          updateStatus('All predefined words successfully deleted!', 'success');
+        } else {
+          log(`Verification failed! ${remainingPredefined.length} predefined words still remain:`);
+          remainingPredefined.forEach(word => {
+            log(`- ID: ${word.id}, English: ${word.english}`);
+          });
+          
+          deleteBtn.disabled = false;
+          updateStatus(`${remainingPredefined.length} predefined words still remain`, 'error');
+        }
+        
+      } catch (error) {
+        log(`ERROR during verification: ${error.message}`);
+        updateStatus(`Verification failed: ${error.message}`, 'error');
+      }
+    }
+
+    function refreshApplication() {
+      refreshBtn.disabled = true;
+      updateStatus('Refreshing application...', 'working');
+      
+      try {
+        // Send message to main window to refresh
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({ type: 'REFRESH_CACHE', target: 'FrenchDataService' }, '*');
+          log('Refresh message sent to main application');
+        }
+        
+        // Show final results
+        const results = {
+          success: stats.predefinedWords === stats.deletedWords,
+          totalWords: stats.totalWords,
+          predefinedWords: stats.predefinedWords,
+          deletedWords: stats.deletedWords,
+          userWords: stats.userWords
+        };
+        
+        resultOutput.textContent = JSON.stringify(results, null, 2);
+        resultSection.style.display = 'block';
+        
+        log('Cleanup process complete!');
+        updateStatus('Cleanup complete! You can now close this window.', 'success');
+        
+      } catch (error) {
+        log(`ERROR during refresh: ${error.message}`);
+        updateStatus(`Refresh failed: ${error.message}`, 'error');
+      }
+    }
+
+    // Event listeners
+    analyzeBtn.addEventListener('click', analyzeDatabase);
+    deleteBtn.addEventListener('click', deletePredefinedWords);
+    verifyBtn.addEventListener('click', verifyDeletion);
+    refreshBtn.addEventListener('click', refreshApplication);
+    closeBtn.addEventListener('click', () => window.close());
+
+    // Initialize
+    log('Cleanup tool initialized and ready.');
+    updateStatus('Ready to analyze database', 'working');
+  </script>
+</body>
+</html>

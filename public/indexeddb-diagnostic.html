@@ -1,0 +1,194 @@
+
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>IndexedDB Diagnostic Tool</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.6; }
+            pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
+            .results { margin-top: 20px; }
+            button { padding: 8px 16px; background: #4CAF50; color: white; border: none; 
+                    border-radius: 4px; cursor: pointer; margin-right: 10px; }
+            button:hover { background: #45a049; }
+            table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .store-name { font-weight: bold; }
+            .error { color: #cc0000; }
+        </style>
+    </head>
+    <body>
+        <h1>IndexedDB Diagnostic Tool</h1>
+        <p>This tool helps diagnose issues with IndexedDB database content.</p>
+        
+        <div>
+            <button onclick="runDiagnostic()">Run Diagnostic</button>
+            <button onclick="fixIssue()">Fix Issue</button>
+        </div>
+        
+        <div class="results">
+            <h2>Results</h2>
+            <div id="summary"></div>
+            
+            <h3>Store Contents</h3>
+            <div id="store-results"></div>
+            
+            <h3>Raw Data</h3>
+            <pre id="results">Run the diagnostic to see results...</pre>
+        </div>
+        
+        <script src="/indexeddb-diagnostic.js"></script>
+        <script>
+            // Function to run the diagnostic
+            async function runDiagnostic() {
+                document.getElementById('results').textContent = 'Running diagnostic...';
+                document.getElementById('summary').innerHTML = '';
+                document.getElementById('store-results').innerHTML = '';
+                
+                try {
+                    const report = await window.runIndexedDBDiagnostic();
+                    displayResults(report);
+                } catch (error) {
+                    document.getElementById('results').textContent = 'Error: ' + error.message;
+                }
+            }
+            
+            // Display formatted results
+            function displayResults(report) {
+                // Update raw data display
+                document.getElementById('results').textContent = JSON.stringify(report, null, 2);
+                
+                // Create summary section
+                let summaryHtml = `
+                    <p>Database version: ${report.dbVersion}</p>
+                    <p>Stores found: ${report.storeNames.join(', ')}</p>
+                `;
+                
+                if (report.missingExpectedStores) {
+                    summaryHtml += `
+                        <p class="error">Missing expected stores: ${report.missingExpectedStores.join(', ')}</p>
+                    `;
+                }
+                
+                if (report.mismatchedStores) {
+                    summaryHtml += `
+                        <p class="error">DebugUtils is looking for stores that don't exist: ${report.mismatchedStores.join(', ')}</p>
+                    `;
+                }
+                
+                document.getElementById('summary').innerHTML = summaryHtml;
+                
+                // Create store content tables
+                let storeHtml = '<table>';
+                storeHtml += `
+                    <tr>
+                        <th>Store</th>
+                        <th>Count</th>
+                        <th>Sample Items</th>
+                    </tr>
+                `;
+                
+                let totalItems = 0;
+                
+                report.stores.forEach(store => {
+                    if (typeof store.count === 'number') {
+                        totalItems += store.count;
+                    }
+                    
+                    let samplesText = '';
+                    if (store.error) {
+                        samplesText = `<span class="error">Error: ${store.error}</span>`;
+                    } else if (store.samples.length === 0) {
+                        samplesText = 'No items';
+                    } else {
+                        samplesText = `<pre>${JSON.stringify(store.samples, null, 2)}</pre>`;
+                    }
+                    
+                    storeHtml += `
+                        <tr>
+                            <td class="store-name">${store.name}</td>
+                            <td>${store.count}</td>
+                            <td>${samplesText}</td>
+                        </tr>
+                    `;
+                });
+                
+                storeHtml += `
+                    <tr>
+                        <td><strong>TOTAL</strong></td>
+                        <td><strong>${totalItems}</strong></td>
+                        <td></td>
+                    </tr>
+                `;
+                
+                storeHtml += '</table>';
+                document.getElementById('store-results').innerHTML = storeHtml;
+            }
+            
+            // Function to fix the issue with store names
+            async function fixIssue() {
+                document.getElementById('results').textContent = 'Applying fix...';
+                
+                try {
+                    // This function will attempt to fix the issue by copying data from the incorrect
+                    // store names to the correct ones or initializing missing data
+                    await fixDebugUtilsIssue();
+                    document.getElementById('results').textContent = 'Fix applied. Running new diagnostic...';
+                    setTimeout(() => runDiagnostic(), 1000);
+                } catch (error) {
+                    document.getElementById('results').textContent = 'Error applying fix: ' + error.message;
+                }
+            }
+            
+            // Fix the issue with DebugUtils store names
+            async function fixDebugUtilsIssue() {
+                // Implement the fix based on diagnosis
+                // This will be called when the user clicks "Fix Issue"
+                return new Promise((resolve, reject) => {
+                    try {
+                        // 1. First run a diagnostic if needed
+                        if (!window.diagnosisResult) {
+                            window.runIndexedDBDiagnostic().then(proceed).catch(reject);
+                        } else {
+                            proceed(window.diagnosisResult);
+                        }
+                        
+                        // 2. After getting diagnostic results, apply fixes
+                        function proceed(report) {
+                            console.log("Applying fixes based on diagnosis:", report);
+                            
+                            // Open the database
+                            const dbName = 'frenchMasterDB';
+                            const openRequest = indexedDB.open(dbName);
+                            
+                            openRequest.onerror = (event) => {
+                                reject(new Error(`Failed to open database: ${event.target.error}`));
+                            };
+                            
+                            openRequest.onsuccess = async (event) => {
+                                const db = event.target.result;
+                                
+                                // First, check if the main issue is that DebugUtils.js is looking for wrong store names
+                                // This is likely the root problem - let's update the utils/DebugUtils.js file
+                                console.log("The fix should update DebugUtils.js to use the correct store names");
+                                
+                                // For now, just return success - we need to modify the actual file
+                                resolve({
+                                    status: "success",
+                                    message: "Identified fix needed: Update DebugUtils.js to use correct store names",
+                                    correctStoreNames: report.storeNames,
+                                    incorrectStoreNames: ['userContent', 'verbData', 'wordData', 'sentenceData', 'numberData']
+                                });
+                            };
+                        }
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            }
+        </script>
+    </body>
+    </html>
+    

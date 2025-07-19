@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndexedDB Enhanced Debug Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1, h2, h3 { margin-bottom: 20px; }
+        button { padding: 8px 16px; margin-right: 10px; margin-bottom: 10px; cursor: pointer; }
+        .danger-button {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            font-weight: bold;
+        }
+        .danger-button:hover {
+            background-color: #c82333;
+        }
+        .danger-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .results { 
+            margin-top: 20px; 
+            padding: 15px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        pre {
+            white-space: pre-wrap;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>French Master Enhanced Database Cleaner</h1>
+        
+        <div>
+            <h2>Delete All Predefined Words</h2>
+            <p>This tool will delete all predefined words from your database. This action cannot be undone.</p>
+            <p>Words to be deleted:</p>
+            <ul>
+                <li>Words with ID starting with "word-"</li>
+                <li>Words with isPredefined=true flag</li>
+                <li>Words from original data imports</li>
+            </ul>
+            
+            <button id="analyzeWords" class="danger-button">1. Analyze Words Database</button>
+            <button id="deleteAllPredefinedWords" class="danger-button" disabled>2. Delete All Predefined Words</button>
+            <button id="verifyDeletion" class="danger-button" disabled>3. Verify Deletion</button>
+            <button id="refreshApp" class="danger-button" disabled>4. Refresh Application Cache</button>
+        </div>
+        
+        <div id="results" class="results">
+            <h3>Results</h3>
+            <div id="statusMessages"></div>
+            <pre id="dataOutput"></pre>
+        </div>
+    </div>
+    
+    <script>
+        // IndexedDB Service
+        class IndexedDBDebugService {
+            constructor() {
+                this.db = null;
+                this.DB_NAME = 'frenchMasterDB';
+                this.DB_VERSION = 1;
+            }
+            
+            async init() {
+                if (this.db) return this.db;
+                
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
+                    
+                    request.onerror = (event) => {
+                        console.error('IndexedDB error:', event.target.error);
+                        reject(event.target.error);
+                    };
+                    
+                    request.onsuccess = (event) => {
+                        this.db = event.target.result;
+                        resolve(this.db);
+                    };
+                    
+                    request.onupgradeneeded = (event) => {
+                        const db = event.target.result;
+                        
+                        // Create stores if they don't exist
+                        ['words', 'verbs', 'sentences', 'numbers', 'users', 'userData'].forEach(storeName => {
+                            if (!db.objectStoreNames.contains(storeName)) {
+                                db.createObjectStore(storeName, { keyPath: 'id' });
+                            }
+                        });
+                    };
+                });
+            }
+            
+            async getAll(storeName) {
+                try {
+                    const db = await this.init();
+                    
+                    return new Promise((resolve, reject) => {
+                        const transaction = db.transaction(storeName, 'readonly');
+                        const store = transaction.objectStore(storeName);
+                        const request = store.getAll();
+                        
+                        request.onsuccess = () => resolve(request.result);
+                        request.onerror = (event) => reject(event.target.error);
+                    });
+                } catch (error) {
+                    console.error(`Error in getAll(${storeName}):`, error);
+                    return [];
+                }
+            }
+            
+            async deleteItem(storeName, id) {
+                try {
+                    const db = await this.init();
+                    
+                    return new Promise((resolve, reject) => {
+                        const transaction = db.transaction(storeName, 'readwrite');
+                        const store = transaction.objectStore(storeName);
+                        const request = store.delete(id);
+                        
+                        request.onsuccess = () => resolve(true);
+                        request.onerror = (event) => reject(event.target.error);
+                    });
+                } catch (error) {
+                    console.error(`Error in deleteItem(${storeName}, ${id}):`, error);
+                    return false;
+                }
+            }
+            
+            isPredefinedItem(item) {
+                return (
+                    item.isPredefined === true || 
+                    (item.id && typeof item.id === 'string' && 
+                        (item.id.startsWith('word-') || 
+                         item.id.startsWith('verb-') || 
+                         item.id.startsWith('sentence-') || 
+                         item.id.startsWith('number-')))
+                );
+            }
+        }
+        
+        // UI functions
+        function addStatusMessage(message, type = 'info') {
+            const statusMessagesElem = document.getElementById('statusMessages');
+            const messageElem = document.createElement('div');
+            messageElem.className = `status ${type}`;
+            messageElem.textContent = message;
+            statusMessagesElem.appendChild(messageElem);
+            
+            // Auto-scroll to bottom
+            messageElem.scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function displayData(data) {
+            const dataOutputElem = document.getElementById('dataOutput');
+            if (typeof data === 'object') {
+                dataOutputElem.textContent = JSON.stringify(data, null, 2);
+            } else {
+                dataOutputElem.textContent = data;
+            }
+        }
+        
+        // Initialize service
+        const dbService = new IndexedDBDebugService();
+        
+        // Variables to store analysis results
+        let analyzedWords = [];
+        let predefinedWords = [];
+        let userWords = [];
+        
+        // Event handlers
+        document.getElementById('analyzeWords').addEventListener('click', async () => {
+            try {
+                addStatusMessage('Connecting to database...', 'info');
+                await dbService.init();
+                addStatusMessage('Database connection established', 'success');
+                
+                addStatusMessage('Loading all words from database...', 'info');
+                const words = await dbService.getAll('words');
+                analyzedWords = words;
+                
+                if (words.length === 0) {
+                    addStatusMessage('No words found in database', 'error');
+                    return;
+                }
+                
+                addStatusMessage(`Found ${words.length} total words in database`, 'success');
+                
+                // Identify predefined words
+                predefinedWords = words.filter(word => dbService.isPredefinedItem(word));
+                userWords = words.filter(word => !dbService.isPredefinedItem(word));
+                
+                addStatusMessage(`Found ${predefinedWords.length} predefined words`, 'info');
+                addStatusMessage(`Found ${userWords.length} user-added words`, 'info');
+                
+                // Display basic info about predefined words
+                if (predefinedWords.length > 0) {
+                    const wordSummary = predefinedWords.map(word => ({
+                        id: word.id,
+                        english: word.english,
+                        french: word.french,
+                        isPredefined: word.isPredefined
+                    }));
+                    
+                    displayData({
+                        totalWords: words.length,
+                        predefinedCount: predefinedWords.length,
+                        userWordCount: userWords.length,
+                        predefinedWords: wordSummary
+                    });
+                    
+                    // Enable delete button
+                    document.getElementById('deleteAllPredefinedWords').disabled = false;
+                } else {
+                    addStatusMessage('No predefined words found! Database is already clean.', 'success');
+                    displayData({
+                        totalWords: words.length,
+                        userWordCount: userWords.length,
+                        message: "No predefined words found in the database."
+                    });
+                }
+            } catch (error) {
+                addStatusMessage(`Error analyzing database: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        });
+        
+        document.getElementById('deleteAllPredefinedWords').addEventListener('click', async () => {
+            if (predefinedWords.length === 0) {
+                addStatusMessage('No predefined words to delete', 'info');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to delete all ${predefinedWords.length} predefined words? This action cannot be undone.`)) {
+                addStatusMessage('Deletion cancelled by user', 'info');
+                return;
+            }
+            
+            try {
+                document.getElementById('deleteAllPredefinedWords').disabled = true;
+                addStatusMessage(`Starting deletion of ${predefinedWords.length} predefined words...`, 'info');
+                
+                let deleteCount = 0;
+                let errorCount = 0;
+                
+                for (const word of predefinedWords) {
+                    try {
+                        addStatusMessage(`Deleting word: ${word.id} (${word.english} - ${word.french[0]})`, 'info');
+                        const success = await dbService.deleteItem('words', word.id);
+                        
+                        if (success) {
+                            deleteCount++;
+                        } else {
+                            errorCount++;
+                            addStatusMessage(`Failed to delete word: ${word.id}`, 'error');
+                        }
+                    } catch (error) {
+                        errorCount++;
+                        addStatusMessage(`Error deleting word ${word.id}: ${error.message}`, 'error');
+                    }
+                }
+                
+                addStatusMessage(`Deletion completed: ${deleteCount} words deleted, ${errorCount} failed`, 'success');
+                
+                // Enable verify button
+                document.getElementById('verifyDeletion').disabled = false;
+            } catch (error) {
+                addStatusMessage(`Error during deletion: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        });
+        
+        document.getElementById('verifyDeletion').addEventListener('click', async () => {
+            try {
+                addStatusMessage('Verifying deletion...', 'info');
+                
+                // Get all words again to verify
+                const words = await dbService.getAll('words');
+                const remainingPredefinedWords = words.filter(word => dbService.isPredefinedItem(word));
+                
+                if (remainingPredefinedWords.length === 0) {
+                    addStatusMessage('Verification successful! All predefined words have been deleted.', 'success');
+                    displayData({
+                        totalWords: words.length,
+                        predefinedCount: 0,
+                        userWordCount: words.length,
+                        message: "All predefined words have been successfully deleted."
+                    });
+                    
+                    // Enable refresh button
+                    document.getElementById('refreshApp').disabled = false;
+                } else {
+                    addStatusMessage(`Verification failed! ${remainingPredefinedWords.length} predefined words still in database.`, 'error');
+                    
+                    const wordSummary = remainingPredefinedWords.map(word => ({
+                        id: word.id,
+                        english: word.english,
+                        french: word.french,
+                        isPredefined: word.isPredefined
+                    }));
+                    
+                    displayData({
+                        totalWords: words.length,
+                        predefinedCount: remainingPredefinedWords.length,
+                        userWordCount: words.length - remainingPredefinedWords.length,
+                        remainingPredefinedWords: wordSummary
+                    });
+                    
+                    // Re-enable delete button for retry
+                    document.getElementById('deleteAllPredefinedWords').disabled = false;
+                    predefinedWords = remainingPredefinedWords;
+                }
+            } catch (error) {
+                addStatusMessage(`Error during verification: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        });
+        
+        document.getElementById('refreshApp').addEventListener('click', async () => {
+            try {
+                addStatusMessage('Sending refresh message to application...', 'info');
+                
+                // Try to refresh the main app if this is opened from there
+                if (window.opener && !window.opener.closed) {
+                    window.opener.postMessage({ type: 'REFRESH_CACHE', target: 'FrenchDataService' }, '*');
+                    addStatusMessage('Refresh message sent to main application', 'success');
+                    addStatusMessage('Process completed! You should now only see your custom words in the application.', 'success');
+                } else {
+                    addStatusMessage('Cannot communicate with main application. Please close this window and refresh the main application manually.', 'info');
+                }
+            } catch (error) {
+                addStatusMessage(`Error refreshing application: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        });
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                await dbService.init();
+                addStatusMessage('Debug tool initialized and ready', 'success');
+            } catch (error) {
+                addStatusMessage(`Error initializing: ${error.message}`, 'error');
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
