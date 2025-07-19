@@ -1,0 +1,114 @@
+[
+  {
+    "id": "verb-3",
+    "infinitive": "faire",
+    "english": "to do/make",
+    "group": "4",
+    "conjugations": {
+      "je": ["fais"],
+      "tu": ["fais"],
+      "il": ["fait"],
+      "nous": ["faisons"],
+      "vous": ["faites"],
+      "ils": ["font"]
+    }
+  },
+  {
+    "id": "verb-4",
+    "infinitive": "aller",
+    "english": "to go",
+    "group": "4",
+    "conjugations": {
+      "je": ["vais"],
+      "tu": ["vas"],
+      "il": ["va"],
+      "nous": ["allons"],
+      "vous": ["allez"],
+      "ils": ["vont"]
+    }
+  },
+  {
+    "id": "verb-5",
+    "infinitive": "dire",
+    "english": "to say",
+    "group": "3",
+    "conjugations": {
+      "je": ["dis"],
+      "tu": ["dis"],
+      "il": ["dit"],
+      "nous": ["disons"],
+      "vous": ["dites"],
+      "ils": ["disent"]
+    }
+  },
+  {
+    "id": "verb-6",
+    "infinitive": "pouvoir",
+    "english": "can/to be able to",
+    "group": "4",
+    "conjugations": {
+      "je": ["peux", "puis"],
+      "tu": ["peux"],
+      "il": ["peut"],
+      "nous": ["pouvons"],
+      "vous": ["pouvez"],
+      "ils": ["peuvent"]
+    }
+  },
+  {
+    "id": "verb-7",
+    "infinitive": "vouloir",
+    "english": "to want",
+    "group": "4",
+    "conjugations": {
+      "je": ["veux"],
+      "tu": ["veux"],
+      "il": ["veut"],
+      "nous": ["voulons"],
+      "vous": ["voulez"],
+      "ils": ["veulent"]
+    }
+  },
+  {
+    "id": "verb-8",
+    "infinitive": "voir",
+    "english": "to see",
+    "group": "4",
+    "conjugations": {
+      "je": ["vois"],
+      "tu": ["vois"],
+      "il": ["voit"],
+      "nous": ["voyons"],
+      "vous": ["voyez"],
+      "ils": ["voient"]
+    }
+  },
+  {
+    "id": "verb-9",
+    "infinitive": "savoir",
+    "english": "to know",
+    "group": "4",
+    "conjugations": {
+      "je": ["sais"],
+      "tu": ["sais"],
+      "il": ["sait"],
+      "nous": ["savons"],
+      "vous": ["savez"],
+      "ils": ["savent"]
+    }
+  },
+  {
+    "id": "verb-10",
+    "infinitive": "prendre",
+    "english": "to take",
+    "group": "3",
+    "conjugations": {
+      "je": ["prends"],
+      "tu": ["prends"],
+      "il": ["prend"],
+      "nous": ["prenons"],
+      "vous": ["prenez"],
+      "ils": ["prennent"]
+    }
+  }
+]
