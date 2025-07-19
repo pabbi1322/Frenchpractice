@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>French Learning Platform - Database Debug Utility</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    
+    h1, h2, h3 {
+      color: #2c3e50;
+    }
+    
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    
+    button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      margin-right: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    
+    button:hover {
+      background-color: #2980b9;
+    }
+    
+    button:disabled {
+      background-color: #95a5a6;
+      cursor: not-allowed;
+    }
+    
+    .status-bar {
+      margin: 15px 0;
+      padding: 10px;
+      border-radius: 4px;
+      font-weight: bold;
+    }
+    
+    .status-working {
+      background-color: #f39c12;
+      color: white;
+    }
+    
+    .status-success {
+      background-color: #2ecc71;
+      color: white;
+    }
+    
+    .status-error {
+      background-color: #e74c3c;
+      color: white;
+    }
+    
+    .results-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    
+    .results-table th, .results-table td {
+      padding: 12px 15px;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+    
+    .results-table th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+    }
+    
+    .total-row {
+      background-color: #f8f9fa;
+      font-weight: bold;
+    }
+    
+    .timestamp {
+      color: #7f8c8d;
+      font-style: italic;
+      text-align: right;
+      font-size: 0.9em;
+    }
+    
+    .error-message {
+      color: #e74c3c;
+      padding: 15px;
+      background-color: #fadbd8;
+      border-left: 4px solid #e74c3c;
+      margin: 15px 0;
+    }
+    
+    .info-box {
+      background-color: #d6eaf8;
+      padding: 15px;
+      border-left: 4px solid #3498db;
+      margin-bottom: 20px;
+    }
+    
+    #log {
+      font-family: monospace;
+      background-color: #f8f9fa;
+      padding: 10px;
+      border-radius: 4px;
+      height: 150px;
+      overflow: auto;
+      margin-top: 20px;
+      border: 1px solid #ddd;
+    }
+    
+    .log-entry {
+      margin: 5px 0;
+      padding: 3px 0;
+      border-bottom: 1px solid #eee;
+    }
+    
+    .debug {
+      color: #7f8c8d;
+    }
+    
+    .info {
+      color: #2980b9;
+    }
+    
+    .error {
+      color: #c0392b;
+    }
+    
+    footer {
+      margin-top: 30px;
+      text-align: center;
+      color: #7f8c8d;
+      font-size: 14px;
+      border-top: 1px solid #eee;
+      padding-top: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>French Learning Platform</h1>
+      <h2>Database Debug Utility</h2>
+    </div>
+    
+    <div class="info-box">
+      <p><strong>This utility checks the contents of the IndexedDB database used by the French Learning Platform.</strong></p>
+      <p>Database: <code>frenchMasterDB</code><br>
+      Object Stores: words, verbs, sentences, numbers, users</p>
+      <p><em>Note: The utility must be opened in the same browser where you use the French Learning Platform.</em></p>
+    </div>
+    
+    <div>
+      <button id="checkBtn">Check Database</button>
+      <button id="exportBtn" disabled>Export to JSON</button>
+    </div>
+    
+    <div id="status" class="status-bar status-working">Ready to check database...</div>
+    
+    <div id="results"></div>
+    
+    <div>
+      <h3>Console Log</h3>
+      <div id="log"></div>
+    </div>
+  </div>
+  
+  <footer>
+    French Learning Platform - Database Debug Utility | Created for diagnostic purposes
+  </footer>
+
+  <script>
+    // Database configuration - must match the app's configuration
+    const DB_NAME = 'frenchMasterDB';
+    const DB_VERSION = 1;
+    const STORES = ['words', 'verbs', 'sentences', 'numbers', 'users'];
+    
+    // Global variables
+    let dbData = null;
+    
+    // Log helper functions
+    function log(message, level = 'info') {
+      const logElement = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${level}`;
+      
+      // Format timestamp
+      const now = new Date();
+      const timestamp = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}.${now.getMilliseconds().toString().padStart(3, '0')}`;
+      
+      entry.textContent = `[${timestamp}] ${message}`;
+      logElement.appendChild(entry);
+      logElement.scrollTop = logElement.scrollHeight; // Auto-scroll to bottom
+      
+      // Also log to console
+      switch(level) {
+        case 'debug': console.debug(message); break;
+        case 'error': console.error(message); break;
+        default: console.log(message);
+      }
+    }
+    
+    // Function to open database connection
+    function openDatabase() {
+      return new Promise((resolve, reject) => {
+        log('Opening database connection...', 'debug');
+        
+        if (!window.indexedDB) {
+          const error = 'Your browser doesn\'t support IndexedDB';
+          log(error, 'error');
+          reject(new Error(error));
+          return;
+        }
+        
+        try {
+          const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+          
+          request.onerror = (event) => {
+            const error = `Database error: ${event.target.error}`;
+            log(error, 'error');
+            reject(new Error(error));
+          };
+          
+          request.onupgradeneeded = (event) => {
+            log('Database upgrade needed, but this utility is read-only.', 'debug');
+            // We don't create any object stores here - this is just for reading
+          };
+          
+          request.onsuccess = (event) => {
+            const db = event.target.result;
+            log(`Successfully connected to database: ${db.name} (version ${db.version})`, 'info');
+            resolve(db);
+          };
+        } catch (error) {
+          log(`Error opening database: ${error.message}`, 'error');
+          reject(error);
+        }
+      });
+    }
+    
+    // Function to count entries in a store
+    function countEntries(db, storeName) {
+      return new Promise((resolve, reject) => {
+        if (!db.objectStoreNames.contains(storeName)) {
+          log(`Store '${storeName}' does not exist in the database`, 'debug');
+          resolve({ 
+            name: storeName, 
+            count: 0, 
+            exists: false 
+          });
+          return;
+        }
+        
+        try {
+          const transaction = db.transaction(storeName, 'readonly');
+          const store = transaction.objectStore(storeName);
+          const countRequest = store.count();
+          
+          countRequest.onsuccess = () => {
+            const count = countRequest.result;
+            log(`Store '${storeName}' has ${count} entries`, 'info');
+            resolve({ 
+              name: storeName, 
+              count, 
+              exists: true 
+            });
+          };
+          
+          countRequest.onerror = (event) => {
+            const error = `Error counting '${storeName}': ${event.target.error}`;
+            log(error, 'error');
+            reject(new Error(error));
+          };
+        } catch (error) {
+          log(`Unexpected error in ${storeName}: ${error.message}`, 'error');
+          reject(error);
+        }
+      });
+    }
+    
+    // Function to get sample data (up to 3 items) from a store
+    function getSampleData(db, storeName, limit = 3) {
+      return new Promise((resolve, reject) => {
+        if (!db.objectStoreNames.contains(storeName)) {
+          resolve([]);
+          return;
+        }
+        
+        try {
+          const transaction = db.transaction(storeName, 'readonly');
+          const store = transaction.objectStore(storeName);
+          const request = store.openCursor();
+          const items = [];
+          
+          request.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor && items.length < limit) {
+              items.push(cursor.value);
+              cursor.continue();
+            } else {
+              resolve(items);
+            }
+          };
+          
+          request.onerror = (event) => {
+            reject(new Error(`Error getting samples from ${storeName}: ${event.target.error}`));
+          };
+        } catch (error) {
+          reject(error);
+        }
+      });
+    }
+    
+    // Function to display results in the UI
+    function displayResults(results) {
+      const resultsContainer = document.getElementById('results');
+      resultsContainer.innerHTML = '';
+      
+      // Create header for the results
+      const header = document.createElement('h3');
+      header.textContent = 'Database Contents';
+      resultsContainer.appendChild(header);
+      
+      // Create table for results
+      const table = document.createElement('table');
+      table.className = 'results-table';
+      
+      // Add header row
+      const headerRow = document.createElement('tr');
+      headerRow.innerHTML = '<th>Store</th><th>Count</th><th>Status</th>';
+      table.appendChild(headerRow);
+      
+      // Add data rows
+      let totalCount = 0;
+      results.forEach(result => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${result.name}</td>
+          <td>${result.count}</td>
+          <td>${result.exists ? '✅ Exists' : '❌ Missing'}</td>
+        `;
+        table.appendChild(row);
+        
+        if (result.exists) {
+          totalCount += result.count;
+        }
+      });
+      
+      // Add total row
+      const totalRow = document.createElement('tr');
+      totalRow.className = 'total-row';
+      totalRow.innerHTML = `
+        <td><strong>TOTAL</strong></td>
+        <td><strong>${totalCount}</strong></td>
+        <td></td>
+      `;
+      table.appendChild(totalRow);
+      
+      resultsContainer.appendChild(table);
+      
+      // Add timestamp
+      const timestamp = document.createElement('p');
+      timestamp.className = 'timestamp';
+      timestamp.textContent = `Last checked: ${new Date().toLocaleString()}`;
+      resultsContainer.appendChild(timestamp);
+      
+      log('Results displayed in UI');
+    }
+    
+    // Main function to check the database
+    async function checkDatabase() {
+      const statusElement = document.getElementById('status');
+      const checkButton = document.getElementById('checkBtn');
+      const exportButton = document.getElementById('exportBtn');
+      
+      try {
+        // Update status
+        statusElement.textContent = 'Connecting to database...';
+        statusElement.className = 'status-bar status-working';
+        checkButton.disabled = true;
+        exportButton.disabled = true;
+        
+        // Connect to database
+        const db = await openDatabase();
+        
+        // Get database info
+        const dbInfo = {
+          name: db.name,
+          version: db.version,
+          objectStores: Array.from(db.objectStoreNames)
+        };
+        log(`Database info: ${JSON.stringify(dbInfo)}`, 'debug');
+        
+        // Count entries in each store
+        statusElement.textContent = 'Counting entries...';
+        const countPromises = STORES.map(storeName => countEntries(db, storeName));
+        const results = await Promise.all(countPromises);
+        
+        // Get sample data for each store
+        const sampleData = {};
+        for (const storeName of STORES) {
+          if (db.objectStoreNames.contains(storeName)) {
+            sampleData[storeName] = await getSampleData(db, storeName, 3);
+            log(`Got ${sampleData[storeName].length} sample items from ${storeName}`);
+          }
+        }
+        
+        // Display results
+        displayResults(results);
+        
+        // Update status
+        statusElement.textContent = 'Check completed successfully';
+        statusElement.className = 'status-bar status-success';
+        
+        // Store the data for potential export
+        dbData = {
+          info: dbInfo,
+          counts: results,
+          samples: sampleData,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Close database connection
+        db.close();
+        log('Database connection closed', 'debug');
+        
+        // Enable export button
+        exportButton.disabled = false;
+        
+      } catch (error) {
+        log(`Error checking database: ${error.message}`, 'error');
+        statusElement.textContent = `Error: ${error.message}`;
+        statusElement.className = 'status-bar status-error';
+        
+        // Display error in results area
+        const resultsContainer = document.getElementById('results');
+        resultsContainer.innerHTML = `<div class="error-message">Error checking database: ${error.message}</div>`;
+        
+      } finally {
+        checkButton.disabled = false;
+      }
+    }
+    
+    // Function to export data to JSON file
+    function exportToJson() {
+      if (!dbData) {
+        log('No data to export. Please check the database first.', 'error');
+        return;
+      }
+      
+      try {
+        // Create JSON string with pretty formatting
+        const jsonString = JSON.stringify(dbData, null, 2);
+        
+        // Create a blob with the data
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        
+        // Create a temporary URL to the blob
+        const url = URL.createObjectURL(blob);
+        
+        // Create a link element to trigger the download
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `french-learning-db-${new Date().toISOString().slice(0,10)}.json`;
+        
+        // Append to the body, click and remove
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        
+        // Release the URL
+        URL.revokeObjectURL(url);
+        
+        log('Data exported to JSON file successfully');
+      } catch (error) {
+        log(`Error exporting data: ${error.message}`, 'error');
+      }
+    }
+    
+    // Set up event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      log('Database Debug Utility loaded', 'info');
+      
+      document.getElementById('checkBtn').addEventListener('click', checkDatabase);
+      document.getElementById('exportBtn').addEventListener('click', exportToJson);
+      
+      // Auto-run the check when the page loads
+      setTimeout(() => {
+        log('Automatically running database check...', 'debug');
+        checkDatabase();
+      }, 500);
+    });
+  </script>
+</body>
+</html>
